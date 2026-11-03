@@ -1,0 +1,61 @@
+name: Build Windows EXE
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'main.py'
+      - 'requirements.txt'
+      - '.github/workflows/build.yml'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Build EXE with PyInstaller
+        run: |
+          pyinstaller --onefile --console `
+            --name "PC_Check_Tool" `
+            --hidden-import=wmi `
+            --hidden-import=win32com `
+            --hidden-import=win32com.client `
+            --hidden-import=pythoncom `
+            --hidden-import=pywintypes `
+            --hidden-import=psutil `
+            --hidden-import=cpuinfo `
+            --hidden-import=msvcrt `
+            main.py
+
+      - name: Verify EXE exists
+        run: |
+          if (-not (Test-Path "dist\PC_Check_Tool.exe")) {
+            Write-Error "Build failed: dist\PC_Check_Tool.exe not found"
+            exit 1
+          }
+          Get-Item "dist\PC_Check_Tool.exe" | Format-List Name, Length, LastWriteTime
+        shell: pwsh
+
+      - name: Upload EXE artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PC_Check_Tool_Windows
+          path: dist/PC_Check_Tool.exe
+          retention-days: 30
+          if-no-files-found: error
